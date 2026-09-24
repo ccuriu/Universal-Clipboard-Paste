@@ -5,10 +5,11 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
+using ComIDataObject = System.Runtime.InteropServices.ComTypes.IDataObject;
 
 internal sealed class HotkeyWindow : NativeWindow, IDisposable
 {
-    const string AppVersion = "1.0.0";
+    const string AppVersion = "1.1.0";
     const int WM_HOTKEY = 0x0312;
     const int HOTKEY_ID = 0x5347;
     const uint MOD_CONTROL = 0x0002;
@@ -22,9 +23,11 @@ internal sealed class HotkeyWindow : NativeWindow, IDisposable
     const int VK_LCONTROL = 0xA2;
     const int VK_RCONTROL = 0xA3;
     const int VK_V = 0x56;
-
     const uint INPUT_KEYBOARD = 1;
     const uint KEYEVENTF_KEYUP = 0x0002;
+    const uint CF_UNICODETEXT = 13;
+    const uint GMEM_MOVEABLE = 0x0002;
+
     [DllImport("user32.dll")]
     static extern bool RegisterHotKey(IntPtr hWnd, int id, uint modifiers, uint vk);
 
@@ -46,6 +49,62 @@ internal sealed class HotkeyWindow : NativeWindow, IDisposable
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
 
+    [DllImport("user32.dll")]
+    static extern bool OpenClipboard(IntPtr hWndNewOwner);
+
+    [DllImport("user32.dll")]
+    static extern bool EmptyClipboard();
+
+    [DllImport("user32.dll")]
+    static extern IntPtr SetClipboardData(uint format, IntPtr memory);
+
+    [DllImport("user32.dll")]
+    static extern bool CloseClipboard();
+
+    [DllImport("kernel32.dll")]
+    static extern IntPtr GlobalAlloc(uint flags, UIntPtr bytes);
+
+    [DllImport("kernel32.dll")]
+    static extern IntPtr GlobalLock(IntPtr memory);
+
+    [DllImport("kernel32.dll")]
+    static extern bool GlobalUnlock(IntPtr memory);
+
+    [DllImport("kernel32.dll")]
+    static extern IntPtr GlobalFree(IntPtr memory);
+    [DllImport("ole32.dll")]
+    static extern int OleInitialize(IntPtr pvReserved);
+
+    [DllImport("ole32.dll")]
+    static extern void OleUninitialize();
+
+    [DllImport("ole32.dll")]
+    static extern int OleSetClipboard([MarshalAs(UnmanagedType.Interface)] ComIDataObject dataObject);
+
+    [DllImport("ole32.dll")]
+    static extern int OleFlushClipboard();
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    static extern int SHParseDisplayName(string name, IntPtr bindContext, out IntPtr pidl,
+        uint attributesIn, out uint attributesOut);
+
+    [DllImport("shell32.dll")]
+    static extern IntPtr ILClone(IntPtr pidl);
+
+    [DllImport("shell32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool ILRemoveLastID(IntPtr pidl);
+
+    [DllImport("shell32.dll")]
+    static extern IntPtr ILFindLastID(IntPtr pidl);
+
+    [DllImport("shell32.dll")]
+    static extern int SHCreateDataObject(IntPtr pidlFolder, uint count, IntPtr[] childPidls,
+        IntPtr innerDataObject, ref Guid riid,
+        [MarshalAs(UnmanagedType.Interface)] out ComIDataObject dataObject);
+
+    [DllImport("ole32.dll")]
+    static extern void CoTaskMemFree(IntPtr pointer);
     [StructLayout(LayoutKind.Sequential)]
     struct INPUT
     {
@@ -80,17 +139,19 @@ internal sealed class HotkeyWindow : NativeWindow, IDisposable
         public uint time;
         public UIntPtr dwExtraInfo;
     }
-
     static readonly string BaseDir =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "ChatGPTClipboardFilePaste");
-
+    static readonly string PayloadDir = Path.Combine(BaseDir, "payloads");
     static readonly string LogPath = Path.Combine(BaseDir, "hotkey.log");
     static int Busy;
+    static int PayloadSequence;
 
     public HotkeyWindow()
     {
         CreateHandle(new CreateParams());
+        Directory.CreateDirectory(PayloadDir);
+        CleanupPayloads(TimeSpan.Zero);
 
         if (!RegisterHotKey(Handle, HOTKEY_ID,
             MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, VK_V))
@@ -108,14 +169,15 @@ internal sealed class HotkeyWindow : NativeWindow, IDisposable
                 Log("HOTKEY_SKIPPED_BUSY");
                 return;
             }
-
             var worker = new Thread(() =>
             {
-                try { PasteToActiveField(); }
+                try { AttachClipboardTextAsFile(); }
+                catch (Exception ex) { Log("ATTACH_ERROR " + ex.GetType().Name + ": " + ex.Message); }
                 finally { Interlocked.Exchange(ref Busy, 0); }
             });
 
             worker.IsBackground = true;
+            worker.SetApartmentState(ApartmentState.STA);
             worker.Start();
             return;
         }
@@ -123,11 +185,20 @@ internal sealed class HotkeyWindow : NativeWindow, IDisposable
         base.WndProc(ref m);
     }
 
-    static void PasteToActiveField()
+    static void AttachClipboardTextAsFile()
     {
-        var sw = Stopwatch.StartNew();
+        var total = Stopwatch.StartNew();
         IntPtr target = GetForegroundWindow();
 
+        string text;
+        if (!TryGetClipboardText(out text) || String.IsNullOrEmpty(text))
+        {
+            Log("CLIPBOARD_NO_TEXT target=" + WindowTitle(target));
+            return;
+        }
+
+        CleanupPayloads(TimeSpan.FromSeconds(15));
+        string filePath = CreatePayload(text);
         for (int i = 0; i < 20; i++)
         {
             if (!IsModifierDown()) break;
@@ -135,32 +206,207 @@ internal sealed class HotkeyWindow : NativeWindow, IDisposable
         }
 
         ReleaseCtrlShift();
-        Thread.Sleep(10);
+        Thread.Sleep(5);
 
-        INPUT[] paste = new INPUT[]
+        int oleHr = OleInitialize(IntPtr.Zero);
+        bool oleInitialized = oleHr >= 0;
+        ComIDataObject shellObject = null;
+
+        try
         {
-            Key(VK_CONTROL, false),
-            Key(VK_V, false),
-            Key(VK_V, true),
-            Key(VK_CONTROL, true)
-        };
+            var shellWatch = Stopwatch.StartNew();
+            shellObject = CreateShellDataObject(filePath);
+            int setHr = OleSetClipboard(shellObject);
+            if (setHr < 0) Marshal.ThrowExceptionForHR(setHr);
+            int flushHr = OleFlushClipboard();
+            if (flushHr < 0) Marshal.ThrowExceptionForHR(flushHr);
+            shellWatch.Stop();
 
-        uint sent = SendInput((uint)paste.Length, paste, Marshal.SizeOf(typeof(INPUT)));
-        bool fallback = false;
+            Thread.Sleep(25);
+            uint sent = SendPaste();
+            bool fallback = sent != 4;
+            if (fallback) LegacyPaste();
 
-        if (sent != paste.Length)
-        {
-            fallback = true;
-            LegacyPaste();
+            Thread.Sleep(120);
+            bool restored = TryRestoreClipboardTextFast(text);
+            total.Stop();
+            Log("ATTACH_SENT file=" + Path.GetFileName(filePath) +
+                " bytes=" + new FileInfo(filePath).Length +
+                " shell_ms=" + shellWatch.ElapsedMilliseconds +
+                " count=" + sent +
+                " fallback=" + fallback +
+                " restored=" + restored +
+                " total_ms=" + total.ElapsedMilliseconds +
+                " target=" + WindowTitle(target));
+
+            ScheduleDelete(filePath);
         }
+        finally
+        {
+            GC.KeepAlive(shellObject);
+            if (shellObject != null && Marshal.IsComObject(shellObject))
+            {
+                try { Marshal.FinalReleaseComObject(shellObject); }
+                catch { }
+            }
 
-        sw.Stop();
-
-        string title = WindowTitle(target);
-        Log("PASTE_SENT count=" + sent + " fallback=" + fallback +
-            " elapsed_ms=" + sw.ElapsedMilliseconds + " target=" + title);
+            if (oleInitialized) OleUninitialize();
+        }
     }
 
+    static string CreatePayload(string text)
+    {
+        Directory.CreateDirectory(PayloadDir);
+        int seq = Interlocked.Increment(ref PayloadSequence);
+        string name = "clipboard_" + DateTime.Now.ToString("yyyyMMdd_HHmmss_fff") +
+            "_" + seq.ToString("D3") + ".txt";
+        string path = Path.Combine(PayloadDir, name);
+        File.WriteAllText(path, text, new UTF8Encoding(false));
+        return path;
+    }
+    static ComIDataObject CreateShellDataObject(string filePath)
+    {
+        IntPtr fullPidl = IntPtr.Zero;
+        IntPtr parentPidl = IntPtr.Zero;
+
+        try
+        {
+            uint attrs;
+            int hr = SHParseDisplayName(filePath, IntPtr.Zero, out fullPidl, 0, out attrs);
+            if (hr < 0) Marshal.ThrowExceptionForHR(hr);
+
+            parentPidl = ILClone(fullPidl);
+            if (parentPidl == IntPtr.Zero)
+                throw new InvalidOperationException("ILClone failed.");
+
+            if (!ILRemoveLastID(parentPidl))
+                throw new InvalidOperationException("ILRemoveLastID failed.");
+
+            IntPtr childPidl = ILFindLastID(fullPidl);
+            Guid iid = new Guid("0000010e-0000-0000-C000-000000000046");
+            ComIDataObject dataObject;
+
+            hr = SHCreateDataObject(parentPidl, 1, new IntPtr[] { childPidl },
+                IntPtr.Zero, ref iid, out dataObject);
+            if (hr < 0) Marshal.ThrowExceptionForHR(hr);
+
+            return dataObject;
+        }
+        finally
+        {
+            if (parentPidl != IntPtr.Zero) CoTaskMemFree(parentPidl);
+            if (fullPidl != IntPtr.Zero) CoTaskMemFree(fullPidl);
+        }
+    }
+
+    static bool TryGetClipboardText(out string text)
+    {
+        text = null;
+
+        for (int i = 0; i < 8; i++)
+        {
+            try
+            {
+                if (!Clipboard.ContainsText(TextDataFormat.UnicodeText)) return false;
+                text = Clipboard.GetText(TextDataFormat.UnicodeText);
+                return true;
+            }
+            catch (ExternalException)
+            {
+                Thread.Sleep(10);
+            }
+        }
+
+        return false;
+    }
+
+    static bool TryRestoreClipboardTextFast(string text)
+    {
+        for (int i = 0; i < 40; i++)
+        {
+            if (TrySetUnicodeClipboard(text)) return true;
+            Thread.Sleep(10);
+        }
+
+        return false;
+    }
+
+    static bool TrySetUnicodeClipboard(string text)
+    {
+        int bytes = (text.Length + 1) * 2;
+        IntPtr memory = GlobalAlloc(GMEM_MOVEABLE, (UIntPtr)bytes);
+        if (memory == IntPtr.Zero) return false;
+
+        IntPtr target = GlobalLock(memory);
+        if (target == IntPtr.Zero)
+        {
+            GlobalFree(memory);
+            return false;
+        }
+
+        try
+        {
+            byte[] data = Encoding.Unicode.GetBytes(text + "\0");
+            Marshal.Copy(data, 0, target, data.Length);
+        }
+        finally
+        {
+            GlobalUnlock(memory);
+        }
+
+        if (!OpenClipboard(IntPtr.Zero))
+        {
+            GlobalFree(memory);
+            return false;
+        }
+
+        try
+        {
+            if (!EmptyClipboard())
+                return false;
+
+            if (SetClipboardData(CF_UNICODETEXT, memory) == IntPtr.Zero)
+                return false;
+
+            memory = IntPtr.Zero;
+            return true;
+        }
+        finally
+        {
+            CloseClipboard();
+            if (memory != IntPtr.Zero) GlobalFree(memory);
+        }
+    }
+
+    static void CleanupPayloads(TimeSpan minimumAge)
+    {
+        try
+        {
+            Directory.CreateDirectory(PayloadDir);
+            DateTime cutoff = DateTime.UtcNow - minimumAge;
+
+            foreach (string file in Directory.GetFiles(PayloadDir, "clipboard_*.txt"))
+            {
+                try
+                {
+                    if (File.GetLastWriteTimeUtc(file) <= cutoff)
+                        File.Delete(file);
+                }
+                catch { }
+            }
+        }
+        catch { }
+    }
+
+    static void ScheduleDelete(string filePath)
+    {
+        ThreadPool.QueueUserWorkItem(delegate
+        {
+            Thread.Sleep(60000);
+            try { File.Delete(filePath); }
+            catch { }
+        });
+    }
     static bool IsModifierDown()
     {
         return IsDown(VK_CONTROL) || IsDown(VK_SHIFT) ||
@@ -186,7 +432,6 @@ internal sealed class HotkeyWindow : NativeWindow, IDisposable
         };
 
         uint sent = SendInput((uint)release.Length, release, Marshal.SizeOf(typeof(INPUT)));
-
         if (sent != release.Length)
         {
             keybd_event((byte)VK_SHIFT, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
@@ -196,8 +441,19 @@ internal sealed class HotkeyWindow : NativeWindow, IDisposable
             keybd_event((byte)VK_LCONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
             keybd_event((byte)VK_RCONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
         }
+    }
 
-        Thread.Sleep(5);
+    static uint SendPaste()
+    {
+        INPUT[] paste = new INPUT[]
+        {
+            Key(VK_CONTROL, false),
+            Key(VK_V, false),
+            Key(VK_V, true),
+            Key(VK_CONTROL, true)
+        };
+
+        return SendInput((uint)paste.Length, paste, Marshal.SizeOf(typeof(INPUT)));
     }
 
     static void LegacyPaste()
@@ -247,7 +503,6 @@ internal sealed class HotkeyWindow : NativeWindow, IDisposable
         DestroyHandle();
     }
 }
-
 static class Program
 {
     [STAThread]

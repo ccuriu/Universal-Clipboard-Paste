@@ -1,5 +1,24 @@
-# Welcome to GitHub Desktop!
+# ChatGPTClipboardFilePaste
 
-This is your README. READMEs are where you can communicate what your project is and how to use it.
+Windows-утилита для быстрой вставки длинного текста в ChatGPT как временного UTF-8 .txt-файла по Ctrl+Shift+V.
 
-Write your name on line 6, save it, and then head back to GitHub Desktop.
+## Что делает
+1. Берёт Unicode-текст из буфера обмена.
+2. Создаёт свежий временный файл в %TEMP%\ChatGPT_Paste.
+3. Удаляет старые clipboard_*.txt, чтобы папка не засорялась.
+4. Открывает меню вложений ChatGPT.
+5. Передаёт полный путь напрямую в системный диалог выбора файла.
+6. Прикрепляет файл и возвращает экранную клавиатуру.
+
+## Текущая версия
+0.3.0 — убран медленный поиск файла в списке диалога; добавлена очистка временной папки и защита от параллельных запусков.
+
+## Сборка
+Запустить BUILD.cmd. Готовый EXE появляется в dist.
+
+## Установка на рабочем ПК
+Рабочая копия сейчас развёрнута в:
+%LOCALAPPDATA%\ChatGPTClipboardFilePaste
+
+Журнал:
+%LOCALAPPDATA%\ChatGPTClipboardFilePaste\hotkey.log

@@ -1,0 +1,8 @@
+dist/
+backup/
+*.exe
+*.log
+*.png
+.vs/
+bin/
+obj/

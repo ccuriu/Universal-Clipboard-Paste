@@ -11,13 +11,13 @@ using ComIDataObject = System.Runtime.InteropServices.ComTypes.IDataObject;
 [assembly: AssemblyTitle("Universal Clipboard Paste")]
 [assembly: AssemblyProduct("Universal Clipboard Paste")]
 [assembly: AssemblyDescription("Smart clipboard hotkey: text as file, files and images passthrough")]
-[assembly: AssemblyCompany("ccuriu")]
-[assembly: AssemblyVersion("1.2.0.0")]
-[assembly: AssemblyFileVersion("1.2.0.0")]
+[assembly: AssemblyCompany("Universal Clipboard Paste")]
+[assembly: AssemblyVersion("1.2.1.0")]
+[assembly: AssemblyFileVersion("1.2.1.0")]
 
 internal sealed class HotkeyWindow : NativeWindow, IDisposable
 {
-    const string AppVersion = "1.2.0";
+    const string AppVersion = "1.2.1";
     const int WM_HOTKEY = 0x0312;
     const int HOTKEY_ID = 0x5347;
     const uint MOD_CONTROL = 0x0002;
@@ -50,12 +50,6 @@ internal sealed class HotkeyWindow : NativeWindow, IDisposable
 
     [DllImport("user32.dll")]
     static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
-
-    [DllImport("user32.dll")]
-    static extern IntPtr GetForegroundWindow();
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
 
     [DllImport("user32.dll")]
     static extern bool OpenClipboard(IntPtr hWndNewOwner);
@@ -150,7 +144,8 @@ internal sealed class HotkeyWindow : NativeWindow, IDisposable
     static readonly string BaseDir =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "UniversalClipboardPaste");
-    static readonly string PayloadDir = Path.Combine(BaseDir, "payloads");
+    static readonly string PayloadDir =
+        Path.Combine(Path.GetTempPath(), "UniversalClipboardPaste");
     static readonly string LogPath = Path.Combine(BaseDir, "hotkey.log");
     static int Busy;
     static int PayloadSequence;
@@ -246,7 +241,6 @@ internal sealed class HotkeyWindow : NativeWindow, IDisposable
     static void PassthroughClipboard(string kind)
     {
         var sw = Stopwatch.StartNew();
-        IntPtr target = GetForegroundWindow();
 
         for (int i = 0; i < 20; i++)
         {
@@ -265,19 +259,17 @@ internal sealed class HotkeyWindow : NativeWindow, IDisposable
         Log("PASSTHROUGH_SENT kind=" + kind +
             " count=" + sent +
             " fallback=" + fallback +
-            " total_ms=" + sw.ElapsedMilliseconds +
-            " target=" + WindowTitle(target));
+            " total_ms=" + sw.ElapsedMilliseconds);
     }
 
     static void AttachClipboardTextAsFile()
     {
         var total = Stopwatch.StartNew();
-        IntPtr target = GetForegroundWindow();
 
         string text;
         if (!TryGetClipboardText(out text) || String.IsNullOrEmpty(text))
         {
-            Log("CLIPBOARD_NO_TEXT target=" + WindowTitle(target));
+            Log("CLIPBOARD_NO_TEXT");
             return;
         }
 
@@ -320,8 +312,7 @@ internal sealed class HotkeyWindow : NativeWindow, IDisposable
                 " count=" + sent +
                 " fallback=" + fallback +
                 " restored=" + restored +
-                " total_ms=" + total.ElapsedMilliseconds +
-                " target=" + WindowTitle(target));
+                " total_ms=" + total.ElapsedMilliseconds);
 
             ScheduleDelete(filePath);
         }
@@ -555,18 +546,6 @@ internal sealed class HotkeyWindow : NativeWindow, IDisposable
         input.U.ki.wVk = (ushort)vk;
         input.U.ki.dwFlags = keyUp ? KEYEVENTF_KEYUP : 0;
         return input;
-    }
-
-    static string WindowTitle(IntPtr hWnd)
-    {
-        if (hWnd == IntPtr.Zero) return "<none>";
-
-        var sb = new StringBuilder(256);
-        try { GetWindowText(hWnd, sb, sb.Capacity); }
-        catch { return "<error>"; }
-
-        string s = sb.ToString().Replace("\r", " ").Replace("\n", " ");
-        return s.Length <= 120 ? s : s.Substring(0, 120);
     }
 
     static void Log(string text)

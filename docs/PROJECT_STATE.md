@@ -1,24 +1,38 @@
 # Состояние проекта
 
-Текущая рабочая версия: 1.2.0.
+Текущая версия: 1.2.1.
 
-## Установлено
+## Рабочие компоненты
+- src\UniversalClipboardPaste.cs
+- BUILD.cmd
+- deploy.ps1
+- installer.iss
+- dist\UniversalClipboardPaste.exe
+- dist\UniversalClipboardPaste-Setup-1.2.1.exe
+
+## Установка
 %LOCALAPPDATA%\UniversalClipboardPaste\UniversalClipboardPaste.exe
-Автозапуск UniversalClipboardPaste указывает на новый путь.
-Старый %LOCALAPPDATA%\ChatGPTClipboardFilePaste удалён после успешной миграции.
 
-## Проверено 25.09.2026
-Text route: содержимое и кириллица совпадают, Clipboard восстановлен.
-File passthrough: ATTACH_VISIBLE=True, PASSTHROUGH_SENT kind=files, 10 мс.
-Image passthrough: Clipboard остаётся image, UI image delta=1, 6 мс.
-SendInput count=4, fallback=False.
-Installer: SHA установленного EXE совпадает с dist.
-Uninstaller: exit=0, процесс/Run key/каталог удаляются полностью.
-Reinstall: exit=0, один процесс, REGISTER_OK VERSION=1.2.0.
+В рабочем каталоге находятся только EXE и технический журнал.
+Служебные данные стандартного деинсталлятора вынесены в:
+%LOCALAPPDATA%\UniversalClipboardPasteUninstall
+
+Автозапуск:
+HKCU\Software\Microsoft\Windows\CurrentVersion\Run -> UniversalClipboardPaste
+
+## Гарантии текущей архитектуры
+- только текст превращается во временный .txt;
+- файлы и изображения не пересохраняются;
+- нет зависимости от конкретного приложения;
+- нет UI Automation и координат;
+- журнал не хранит содержимое Clipboard или названия окон;
+- временный текст хранится только в %TEMP% и автоматически удаляется;
+- каталог установки не содержит пользовательское содержимое;
+- старые реализации в дереве проекта отсутствуют.
 
 ## Контрольные SHA-256
 UniversalClipboardPaste.exe:
-18F40D6301CB65E90DCFAE5466E9A34CB2EB250BA030AE453D56C7726795DABB
+C516F12D4B3F63E5289107DEADAC1B55D66404CEFED95A58211A1F2F7476D92E
 
-UniversalClipboardPaste-Setup-1.2.0.exe:
-A56F56E0FDB8BCCDC12767A1920D34543A119AF3FC96D4633A0461A0CDF9EBCD
+UniversalClipboardPaste-Setup-1.2.1.exe:
+D1054168CBD69686B07A6BC70E3984321AB111833EA16AD49714C191A42E549F

@@ -2,7 +2,6 @@
 setlocal
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
 if not exist dist mkdir dist
-del /q dist\ChatGPTClipboardFilePaste.exe 2>nul
 "%CSC%" /nologo /target:winexe /platform:anycpu /optimize+ /out:dist\UniversalClipboardPaste.exe /reference:"%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\System.Windows.Forms.dll" src\UniversalClipboardPaste.cs
 if errorlevel 1 exit /b 1
 echo BUILD_OK

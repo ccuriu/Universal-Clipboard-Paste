@@ -1,25 +1,28 @@
-# Архитектура 1.1
+# Архитектура 1.2
 
-Цель: превратить текст из Clipboard в реальный файл и вставить его как вложение напрямую в активное поле без привязки к конкретному сайту.
+## Главный принцип
+Universal Clipboard Paste не преобразует Clipboard без необходимости.
 
-## Рабочий путь
-1. RegisterHotKey принимает Ctrl+Shift+V.
-2. Текст из Clipboard сохраняется в UTF-8 .txt в локальной payload-папке.
-3. Для файла строится настоящий Windows Shell IDataObject через SHParseDisplayName и SHCreateDataObject.
-4. OleSetClipboard помещает Shell-объект в OLE Clipboard.
-5. OleFlushClipboard материализует его системные форматы (FileDrop, FileContents, FileGroupDescriptorW и др.).
-6. Ctrl/Shift нормализуются, SendInput отправляет обычный Ctrl+V в активное поле.
-7. Через короткое окно исходный Unicode-текст возвращается в Clipboard неблокирующим Win32-кодом.
-8. Payload удаляется с задержкой; старые payload-файлы чистятся автоматически.
+Ctrl+Shift+V сначала определяет тип содержимого:
+1. FileDrop -> passthrough Ctrl+V.
+2. Image/Bitmap -> passthrough Ctrl+V.
+3. Text -> text-as-file.
+4. Other -> passthrough Ctrl+V.
 
-## Почему это лучше старого пути
-Нет меню «+», UI Automation, координат, Проводника, файлового диалога и поиска файла.
-Программа не знает ничего о ChatGPT: она отдаёт целевому приложению тот же класс Shell-данных, который создаёт Проводник при копировании файла.
+## Text-as-file
+Текст сохраняется в UTF-8 .txt.
+SHCreateDataObject создаёт настоящий Windows Shell IDataObject.
+OleSetClipboard + OleFlushClipboard публикуют файл в системный Clipboard.
+SendInput отправляет Ctrl+V в активное поле.
+После захвата файла целевым приложением исходный Unicode-текст возвращается в Clipboard.
+Payload удаляется автоматически.
 
 ## Надёжность
-INPUT содержит MOUSEINPUT и KEYBDINPUT в union, поэтому SendInput корректен на x64.
-Mutex запрещает второй экземпляр, Busy — наложение операций.
-Fallback keybd_event используется только если SendInput отправил не 4 события.
+x64 INPUT содержит MOUSEINPUT и KEYBDINPUT.
+Mutex запрещает второй экземпляр.
+Busy не допускает наложение операций.
+Fallback keybd_event применяется только если SendInput отправил не четыре события.
 
-## Граница универсальности
-Работает там, где само приложение принимает вставку файлов из Windows Clipboard. Если приложение принимает только текст, файл ему навязать универсальным Windows API нельзя.
+## Намеренно отсутствует
+Нет логики ChatGPT, UI Automation, DOM, кликов, координат, меню «+» и диалогов выбора файла.
+Граница универсальности определяется возможностями самого целевого приложения.

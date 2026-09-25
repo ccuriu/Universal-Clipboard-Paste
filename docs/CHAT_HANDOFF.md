@@ -1,24 +1,21 @@
 # Указание рабочему чату проекта
 
-Работай только от версии 1.1.0 и её архитектуры Shell Clipboard. Не возвращай обычный Ctrl+V из 1.0.0 и не возвращай меню ChatGPT/UI Automation из 0.3.x без отдельного решения управляющего чата.
+Работай только от Universal Clipboard Paste 1.2.0.
+Источник истины: src\UniversalClipboardPaste.cs, BUILD.cmd, deploy.ps1, installer.iss и main GitHub.
 
-Источник истины:
-- src\ChatGPTClipboardFilePaste.cs
-- deploy.ps1
-- %LOCALAPPDATA%\ChatGPTClipboardFilePaste\hotkey.log
-- main GitHub-репозитория.
+Не возвращай:
+- обычный Ctrl+V для текстового маршрута из 1.0.0;
+- меню ChatGPT/UI Automation/мышь/файловый диалог из 0.3.x;
+- преобразование изображений в PNG без доказанной необходимости.
 
-При любой доработке сохраняй основной путь:
-Clipboard text -> UTF-8 payload -> SHCreateDataObject -> OleSetClipboard -> OleFlushClipboard -> Ctrl+V -> восстановление исходного Clipboard -> автоочистка payload.
+Архитектурное правило:
+files/images/other -> passthrough исходного Clipboard;
+text -> UTF-8 payload -> Shell IDataObject -> OLE Clipboard -> Ctrl+V -> восстановление текста.
 
-Проверяй:
-- файл реально появляется в активном поле;
-- содержимое совпадает байт-в-текст с исходником;
-- кириллица сохранена;
-- Clipboard восстановлен;
-- Ctrl/Shift не зажаты;
-- count=4, fallback=False;
-- нет HOTKEY_SKIPPED_BUSY при нормальном темпе;
-- задержка не регрессирует к секундам.
+При изменениях обязательно проверяй:
+count=4, fallback=False, отсутствие зажатых Ctrl/Shift;
+совпадение текстового payload;
+неизменность исходного Clipboard для passthrough;
+чистую установку, автозапуск и удаление.
 
-Следующий этап: матрица приложений и Smart Clipboard для изображений/готовых файлов. Любую новую сложность добавлять только после воспроизводимого теста.
+Следующий этап: матрица совместимости приложений, затем UX/релизная упаковка.

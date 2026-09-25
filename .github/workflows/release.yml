@@ -1,0 +1,78 @@
+name: Build tagged release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build application
+        shell: cmd
+        run: BUILD.cmd
+
+      - name: Install Inno Setup
+        shell: powershell
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
+        shell: powershell
+        run: |
+          $iscc = @(
+            "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+            "C:\Program Files\Inno Setup 6\ISCC.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw "ISCC.exe not found" }
+          & $iscc installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Create checksum
+        shell: powershell
+        run: |
+          $setup = Get-ChildItem "dist\UniversalClipboardPaste-Setup-*.exe" |
+            Select-Object -First 1
+          if (-not $setup) { throw "Installer not found" }
+          $checksum = [System.IO.Path]::ChangeExtension($setup.FullName, ".sha256.txt")
+          $hash = (Get-FileHash $setup.FullName -Algorithm SHA256).Hash
+          "$hash  $($setup.Name)" | Set-Content $checksum -Encoding ascii
+          Write-Host "SHA256=$hash"
+
+      - name: Publish release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart("v")
+          $setup = Get-ChildItem "dist\UniversalClipboardPaste-Setup-*.exe" |
+            Select-Object -First 1
+          $checksum = Get-ChildItem "dist\UniversalClipboardPaste-Setup-*.sha256.txt" |
+            Select-Object -First 1
+
+          @"
+          Universal Clipboard Paste $version
+
+          - Text clipboard content is inserted as a temporary UTF-8 .txt file.
+          - Existing files and images pass through unchanged.
+          - Per-user Windows installer; administrator rights are not required.
+          - Clipboard contents and active window titles are not written to logs.
+
+          The installer is currently unsigned. Verify the attached SHA-256 file before running it.
+          "@ | Set-Content release-notes.md -Encoding utf8
+
+          gh release create $tag `
+            $setup.FullName `
+            $checksum.FullName `
+            --repo "${{ github.repository }}" `
+            --verify-tag `
+            --title "Universal Clipboard Paste $version" `
+            --notes-file release-notes.md

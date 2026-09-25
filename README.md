@@ -1,25 +1,28 @@
 # Universal Clipboard Paste
 
-Universal Clipboard Paste — фоновая Windows-утилита для Ctrl+Shift+V.
+Universal Clipboard Paste — фоновая Windows-утилита для глобальной комбинации Ctrl+Shift+V.
 
-## Версия 1.2.0
-Smart Clipboard вмешивается только там, где это полезно:
-- текст -> временный UTF-8 .txt -> вставка как настоящий Shell-файл;
-- существующий файл/файлы -> обычная вставка исходного Clipboard без пересоздания;
-- изображение -> обычная вставка исходного Clipboard без конвертации;
-- прочие форматы -> passthrough без изменения Clipboard.
+## Назначение
+Программа использует стандартный Clipboard Windows и не привязана к конкретному приложению.
 
-Для текстового маршрута используется SHCreateDataObject + OleSetClipboard + OleFlushClipboard.
-Нет меню ChatGPT, UI Automation, мыши, координат, Проводника и файлового диалога.
+Поведение зависит от содержимого буфера:
+- текст -> временный UTF-8 .txt -> вставка как файловое вложение;
+- файл или несколько файлов -> вставка исходного Clipboard без изменений;
+- изображение -> вставка исходного Clipboard без изменений;
+- другие форматы -> passthrough без преобразования.
 
-## Проверено
-ChatGPT Web: text-as-file работает, кириллица и содержимое совпадают.
-File passthrough: файл появился напрямую, 10 мс.
-Image passthrough: изображение осталось исходным в Clipboard и появилось в поле, 6 мс.
-SendInput: 4/4, fallback=False.
+Это работает в любых полях и приложениях, которые поддерживают соответствующую вставку из Clipboard.
+
+## Версия 1.2.1
+- без автоматизации интерфейса целевых приложений;
+- без кликов мышью и координат;
+- без системного окна выбора файла;
+- без сохранения содержимого Clipboard в журнал;
+- без записи названий активных окон в журнал;
+- временные текстовые payload-файлы создаются только в системном %TEMP% и удаляются автоматически.
 
 ## Установка
-Релизный установщик: dist\UniversalClipboardPaste-Setup-1.2.0.exe
-Установка per-user в %LOCALAPPDATA%\UniversalClipboardPaste, без прав администратора.
-Автозапуск: HKCU\Software\Microsoft\Windows\CurrentVersion\Run.
-Подробности: docs\INSTALL.md.
+Используйте dist\UniversalClipboardPaste-Setup-1.2.1.exe.
+Установка выполняется для текущего пользователя в %LOCALAPPDATA%\UniversalClipboardPaste и не требует прав администратора.
+
+Подробнее: docs\INSTALL.md.

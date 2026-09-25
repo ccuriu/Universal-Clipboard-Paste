@@ -1,12 +1,12 @@
 #define MyAppName "Universal Clipboard Paste"
-#define MyAppVersion "1.2.0"
+#define MyAppVersion "1.2.1"
 #define MyAppExeName "UniversalClipboardPaste.exe"
 
 [Setup]
 AppId={{9B7E07F0-0E58-4FB3-A952-08E9E7F3B77C}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-AppPublisher=ccuriu
+AppPublisher=Universal Clipboard Paste
 DefaultDirName={localappdata}\UniversalClipboardPaste
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
@@ -19,7 +19,8 @@ UninstallDisplayName={#MyAppName}
 SetupLogging=yes
 
 [InstallDelete]
-Type: files; Name: "{app}\UniversalClipboardPaste.cs"
+Type: files; Name: "{app}\hotkey.log"
+Type: filesandordirs; Name: "{app}\payloads"
 
 [Files]
 Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
@@ -36,33 +37,21 @@ Filename: "{app}\{#MyAppExeName}"; Description: "Launch Universal Clipboard Past
 
 [UninstallRun]
 Filename: "{cmd}"; Parameters: "/C taskkill /IM UniversalClipboardPaste.exe /F >nul 2>&1"; Flags: runhidden; RunOnceId: "StopUniversalClipboardPaste"
+Filename: "{cmd}"; Parameters: "/C rmdir /S /Q ""%TEMP%\UniversalClipboardPaste"" >nul 2>&1"; Flags: runhidden; RunOnceId: "CleanUniversalClipboardPasteTemp"
 
 [UninstallDelete]
-Type: files; Name: "{app}\UniversalClipboardPaste.cs"
-Type: filesandordirs; Name: "{app}\payloads"
 Type: files; Name: "{app}\hotkey.log"
-Type: files; Name: "{app}\hotkey_pre_1.2.log"
 
 [Code]
-procedure StopOldProcesses;
+procedure StopProcess;
 var
   ResultCode: Integer;
 begin
   Exec(ExpandConstant('{cmd}'), '/C taskkill /IM UniversalClipboardPaste.exe /F >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Exec(ExpandConstant('{cmd}'), '/C taskkill /IM ChatGPTClipboardFilePaste.exe /F >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
-var
-  OldDir: String;
 begin
   if CurStep = ssInstall then
-    StopOldProcesses;
-
-  if CurStep = ssPostInstall then
-  begin
-    OldDir := ExpandConstant('{localappdata}\ChatGPTClipboardFilePaste');
-    if DirExists(OldDir) then
-      DelTree(OldDir, True, True, True);
-  end;
+    StopProcess;
 end;

@@ -1,0 +1,75 @@
+name: Release v1.2.1
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/release-v1.2.1.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build application
+        shell: cmd
+        run: BUILD.cmd
+
+      - name: Install Inno Setup
+        shell: powershell
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
+        shell: powershell
+        run: |
+          $iscc = @(
+            "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+            "C:\Program Files\Inno Setup 6\ISCC.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw "ISCC.exe not found" }
+          & $iscc installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Create SHA-256 file
+        shell: powershell
+        run: |
+          $setup = "dist\UniversalClipboardPaste-Setup-1.2.1.exe"
+          if (-not (Test-Path $setup)) { throw "Installer not found: $setup" }
+          $hash = (Get-FileHash $setup -Algorithm SHA256).Hash
+          "$hash  UniversalClipboardPaste-Setup-1.2.1.exe" |
+            Set-Content "dist\UniversalClipboardPaste-Setup-1.2.1.sha256.txt" -Encoding ascii
+          Write-Host "SHA256=$hash"
+
+      - name: Create GitHub Release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          @"
+          First public release of Universal Clipboard Paste.
+
+          Highlights:
+          - Ctrl+Shift+V converts text clipboard content into a temporary UTF-8 .txt file and inserts it as a file attachment.
+          - Existing files and images pass through unchanged.
+          - No application-specific UI automation, mouse coordinates, or file-picker automation in the runtime path.
+          - Clipboard contents and active window titles are not written to logs.
+          - Temporary text payloads are created only under the system TEMP directory and removed automatically.
+          - Per-user installer; administrator rights are not required.
+
+          Note: the installer is not code-signed, so Windows SmartScreen may display a warning. Verify the SHA-256 checksum before running it.
+          "@ | Set-Content release-notes.md -Encoding utf8
+
+          gh release create v1.2.1 `
+            "dist\UniversalClipboardPaste-Setup-1.2.1.exe" `
+            "dist\UniversalClipboardPaste-Setup-1.2.1.sha256.txt" `
+            --repo "${{ github.repository }}" `
+            --target "${{ github.sha }}" `
+            --title "Universal Clipboard Paste 1.2.1" `
+            --notes-file release-notes.md

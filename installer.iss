@@ -8,6 +8,7 @@ AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher=Universal Clipboard Paste
 DefaultDirName={localappdata}\UniversalClipboardPaste
+UninstallFilesDir={localappdata}\UniversalClipboardPasteUninstall
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=dist

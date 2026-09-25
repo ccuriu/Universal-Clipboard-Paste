@@ -3,36 +3,42 @@
 Текущая версия: 1.2.1.
 
 ## Рабочие компоненты
-- src\UniversalClipboardPaste.cs
-- BUILD.cmd
-- deploy.ps1
-- installer.iss
-- dist\UniversalClipboardPaste.exe
-- dist\UniversalClipboardPaste-Setup-1.2.1.exe
+- `src/UniversalClipboardPaste.cs`
+- `BUILD.cmd`
+- `deploy.ps1`
+- `installer.iss`
+- `.github/workflows/release.yml`
+
+Локальная папка `dist` является build-output и не хранится в Git.
+
+## Публичный релиз
+Release: `v1.2.1`
+
+Assets:
+- `UniversalClipboardPaste-Setup-1.2.1.exe`
+- `UniversalClipboardPaste-Setup-1.2.1.sha256.txt`
+
+SHA-256 опубликованного installer asset:
+`84E606DC618ACBB77A7BE5F0A5A7E6116D963DDD7B559CBCCB6347B9501EA677`
+
+Релиз собран на чистом GitHub Actions runner из исходников репозитория.
 
 ## Установка
-%LOCALAPPDATA%\UniversalClipboardPaste\UniversalClipboardPaste.exe
+`%LOCALAPPDATA%\UniversalClipboardPaste\UniversalClipboardPaste.exe`
 
 В рабочем каталоге находятся только EXE и технический журнал.
 Служебные данные стандартного деинсталлятора вынесены в:
-%LOCALAPPDATA%\UniversalClipboardPasteUninstall
+`%LOCALAPPDATA%\UniversalClipboardPasteUninstall`
 
 Автозапуск:
-HKCU\Software\Microsoft\Windows\CurrentVersion\Run -> UniversalClipboardPaste
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run -> UniversalClipboardPaste`
 
 ## Гарантии текущей архитектуры
-- только текст превращается во временный .txt;
+- только текст превращается во временный `.txt`;
 - файлы и изображения не пересохраняются;
 - нет зависимости от конкретного приложения;
-- нет UI Automation и координат;
+- нет UI Automation и координат в runtime-пути;
 - журнал не хранит содержимое Clipboard или названия окон;
-- временный текст хранится только в %TEMP% и автоматически удаляется;
+- временный текст хранится только в `%TEMP%` и автоматически удаляется;
 - каталог установки не содержит пользовательское содержимое;
 - старые реализации в дереве проекта отсутствуют.
-
-## Контрольные SHA-256
-UniversalClipboardPaste.exe:
-C516F12D4B3F63E5289107DEADAC1B55D66404CEFED95A58211A1F2F7476D92E
-
-UniversalClipboardPaste-Setup-1.2.1.exe:
-D1054168CBD69686B07A6BC70E3984321AB111833EA16AD49714C191A42E549F

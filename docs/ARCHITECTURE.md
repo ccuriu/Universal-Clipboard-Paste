@@ -1,28 +1,28 @@
-# Архитектура 1.2
+# Архитектура
 
-## Главный принцип
-Universal Clipboard Paste не преобразует Clipboard без необходимости.
+## Принцип
+Universal Clipboard Paste минимально вмешивается в Clipboard.
 
-Ctrl+Shift+V сначала определяет тип содержимого:
-1. FileDrop -> passthrough Ctrl+V.
-2. Image/Bitmap -> passthrough Ctrl+V.
+Ctrl+Shift+V определяет тип содержимого:
+1. FileDrop -> обычный Ctrl+V без изменения Clipboard.
+2. Image/Bitmap -> обычный Ctrl+V без изменения Clipboard.
 3. Text -> text-as-file.
-4. Other -> passthrough Ctrl+V.
+4. Other -> обычный Ctrl+V без изменения Clipboard.
 
 ## Text-as-file
-Текст сохраняется в UTF-8 .txt.
-SHCreateDataObject создаёт настоящий Windows Shell IDataObject.
-OleSetClipboard + OleFlushClipboard публикуют файл в системный Clipboard.
+Текст сохраняется во временный UTF-8 .txt в системном %TEMP%, вне каталога установки.
+Windows Shell IDataObject создаётся через SHCreateDataObject.
+OleSetClipboard и OleFlushClipboard публикуют файл в системный Clipboard.
 SendInput отправляет Ctrl+V в активное поле.
-После захвата файла целевым приложением исходный Unicode-текст возвращается в Clipboard.
-Payload удаляется автоматически.
+После передачи файла исходный Unicode-текст возвращается в Clipboard.
+Временный payload удаляется автоматически.
 
 ## Надёжность
-x64 INPUT содержит MOUSEINPUT и KEYBDINPUT.
-Mutex запрещает второй экземпляр.
-Busy не допускает наложение операций.
-Fallback keybd_event применяется только если SendInput отправил не четыре события.
+- корректная x64-структура INPUT;
+- один экземпляр через Mutex;
+- защита от наложения операций через Busy;
+- fallback keybd_event при неполном SendInput.
 
-## Намеренно отсутствует
-Нет логики ChatGPT, UI Automation, DOM, кликов, координат, меню «+» и диалогов выбора файла.
-Граница универсальности определяется возможностями самого целевого приложения.
+## Приватность
+Журнал содержит только технические события, тип маршрута и время выполнения.
+Содержимое Clipboard, имена файлов пользователя и названия активных окон не записываются.

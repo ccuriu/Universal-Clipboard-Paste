@@ -1,10 +1,8 @@
 # AGENTS.md — Universal-Clipboard-Paste: правила работы исполнителей
 
-## Обязательный URIU LEAN — постоянное правило всех проектов (04.11.2026)
+## LEAN — использовать по событию, во всех проектах
 
-**Все исполнители — обычные веб-чаты ChatGPT, Codex, локальные агенты и проверяющие — должны действительно использовать LEAN на подходящих этапах работы, а не просто считать его установленным.** На URIU штатная команда `D:\URIU-OPTIONAL-TOOLS\URIU-LEAN-CYCLE.cmd`: после существенных правок и целевых тестов `-Stage claim -Project "D:\своя-лаборатория"`, при ошибках и длинных журналах `-Stage failure -Log "D:\журнал.log" -Top 6`, после изменения подтверждённого MCP-каталога `-Stage catalog -ToolsJson "D:\tools.json"`. В конце работы указать `LEAN=USED / NOT_APPLICABLE / UNAVAILABLE` с результатом и путём/причиной. На другом ПК использовать только собственную подтверждённую установку или разрешённый Бридж; не копировать идентификаторы/ключи URIU. Не запускать фоновую службу, дополнительные агенты, память, сканирование D: на каждом запросе и не заявлять экономию квот Plus без измерения. **Не добавлять preflight к FAST START, не нарушать EXCLUSIVE WRITE, owner GO и UNKNOWN/no-replay.** Если LEAN недоступен — продолжать основную работу и указать причину.
-
-[Полный бессрочный межпроектный порядок LEAN](https://github.com/ccuriu/uriu-control-bridge/blob/main/docs/URIU_LEAN_GLOBAL_WORKFLOW.md).
+Исполнители WEB/Codex: на URIU `D:\URIU-OPTIONAL-TOOLS\URIU-LEAN-CYCLE.cmd`. После **существенных** изменений кода и целевых тестов — `-Stage claim -Project D:\lab`; при **большом** журнале ошибок — `-Stage failure -Log D:\log -Top 6`; при изменении подтверждённого MCP-каталога — `-Stage catalog -ToolsJson D:\tools.json`. Не запускать на каждом запросе, маленькой правке или не на том ПК без установленной утилиты. В инженерном отчёте — одна строка о результате или пропуске. Нет фоновых служб и доказанной экономии Plus. [Единое правило](https://github.com/ccuriu/uriu-control-bridge/blob/main/docs/URIU_LEAN_GLOBAL_WORKFLOW.md).
 
 
 
